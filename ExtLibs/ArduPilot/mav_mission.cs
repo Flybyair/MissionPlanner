@@ -10,7 +10,7 @@ namespace MissionPlanner.ArduPilot
     {
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
-        public static void upload(MAVLinkInterface port, MAVLink.MAV_MISSION_TYPE type, List<Locationwp> commandlist, MAVLink.MAV_FRAME frame = MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT)
+        public static void upload(MAVLinkInterface port, MAVLink.MAV_MISSION_TYPE type, List<Locationwp> commandlist)
         {
             try
             {
@@ -23,7 +23,7 @@ namespace MissionPlanner.ArduPilot
 
                 bool use_int = (port.MAV.cs.capabilities & (uint)MAVLink.MAV_PROTOCOL_CAPABILITY.MISSION_INT) > 0;
 
-                port.setWPTotal((ushort)commandlist.Count);
+                port.setWPTotal((ushort)commandlist.Count, type);
 
                 // process commandlist to the mav
                 for (a = 0; a < commandlist.Count; a++)
@@ -42,7 +42,7 @@ namespace MissionPlanner.ArduPilot
                         // resend for partial upload
                         port.setWPPartialUpdate((ushort)(uploadwpno), (ushort)commandlist.Count, type);
                         // reupload this point.
-                        ans = port.setWP(temp, (ushort)(uploadwpno), frame, 0, 1, use_int, type);
+                        ans = port.setWP(temp, (ushort)(uploadwpno), (MAVLink.MAV_FRAME)temp.frame, 0, 1, use_int, type);
                     }
 
                     if (ans == MAVLink.MAV_MISSION_RESULT.MAV_MISSION_NO_SPACE)
@@ -83,7 +83,7 @@ namespace MissionPlanner.ArduPilot
                     }
                 }
 
-                port.setWPACK();
+                port.setWPACK(type);
 
             }
             catch (Exception ex)
