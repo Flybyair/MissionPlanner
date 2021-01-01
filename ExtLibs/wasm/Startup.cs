@@ -1,94 +1,87 @@
 using System;
+using System.IO;
+using System.Net;
+using System.Net.Http;
 using Blazor.Extensions.Storage;
-using Blazor.FileReader;
 using log4net.Appender;
 using log4net.Core;
 using log4net.Layout;
 using log4net.Repository.Hierarchy;
-using Microsoft.AspNetCore.Components.Builder;
+
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
-using Microsoft.JSInterop;
+using System.Threading.Tasks;
+using Blazor.IndexedDB.Framework;
+using BlazorWorker.Core;
+using GMap.NET.MapProviders;
 using MissionPlanner.ArduPilot;
 using MissionPlanner.Utilities;
-
+using Sotsera.Blazor.Toaster.Core.Models;
+using Tewr.Blazor.FileReader;
+using Toolbelt.Blazor.Extensions.DependencyInjection;
 
 namespace wasm
 {
     public class Startup
     {
-        private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-
-        public void ConfigureServices(IServiceCollection services)
+        public class FakeRequest : WebRequest
         {
-            services.AddStorage();
+            private Uri _uri;
 
-            //services.Add(new ServiceDescriptor(typeof(IFileReaderService), typeof(FileReaderService), ServiceLifetime.Transient));
+            public FakeRequest(Uri uri)
+            {
+                _uri = uri;
+            }
 
-            var x = System.Runtime.CompilerServices.Unsafe.Unbox<int>(1);
-            services.AddFileReaderService();
+            public override Uri RequestUri
+            {
+                get { return _uri; }
+            }
 
-            //services.UseWebUSB(); // Makes IUSB available to the DI container
+            public override Stream GetRequestStream()
+            {
+                return base.GetRequestStream();
+            }
+
+            public override WebResponse GetResponse()
+            {
+                throw new Exception("Not ASYNC");
+                return new FakeWebResponce(getStream().Result);
+            }
+
+            async Task<Stream> getStream()
+            {
+                return await new HttpClient().GetStreamAsync(RequestUri);
+            }
+
+            public override IWebProxy Proxy
+            {
+                get { return EmptyWebProxy.Instance; }
+                set { }
+            } 
         }
-        //IBlazorApplicationBuilder
-        //IComponentsApplicationBuilder
-        public void Configure(IComponentsApplicationBuilder app)
+
+        public class FakeWebResponce: WebResponse
         {
-            app.AddComponent<App>("app");
+            private readonly Stream _getResult;
 
-            log4net.Repository.Hierarchy.Hierarchy hierarchy =
-                (Hierarchy)log4net.LogManager.GetRepository(Assembly.GetAssembly(typeof(Startup)));
-
-            PatternLayout patternLayout = new PatternLayout();
-            patternLayout.ConversionPattern = "%date [%thread] %-5level %logger - %message%newline";
-            patternLayout.ActivateOptions();
-
-            var cca = new ConsoleAppender();
-            cca.Layout = patternLayout;
-            cca.ActivateOptions();
-            hierarchy.Root.AddAppender(cca);
-
-            hierarchy.Root.Level = Level.Debug;
-            hierarchy.Configured = true;
-
-            log.Info("test");
-
-            log.Info("Configure Done");
-
-            BinaryLog.onFlightMode += (firmware, modeno) =>
+            public FakeWebResponce(Stream getResult)
             {
-                try
-                {
-                    if (firmware == "")
-                        return null;
+                _getResult = getResult;
+            }
 
-                    var modes = Common.getModesList((Firmwares)Enum.Parse(typeof(Firmwares), firmware));
-                    string currentmode = null;
-
-                    foreach (var mode in modes)
-                    {
-                        if (mode.Key == modeno)
-                        {
-                            currentmode = mode.Value;
-                            break;
-                        }
-                    }
-
-                    return currentmode;
-                }
-                catch
-                {
-                    return null;
-                }
-            };
-
-            CustomMessageBox.ShowEvent += (text, caption, buttons, icon, yestext, notext) =>
+            public override Stream GetResponseStream()
             {
-                Console.WriteLine("CustomMessageBox " + caption + " " + text);
+                return _getResult;
+            }
+        }
 
-
-                return CustomMessageBox.DialogResult.OK;
-            };
+        public class FakeRequestFactory : IWebRequestCreate
+        {
+            public WebRequest Create(Uri uri)
+            {
+                return new FakeRequest(uri);
+            }
         }
     }
 }

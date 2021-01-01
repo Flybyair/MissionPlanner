@@ -1,15 +1,13 @@
+using log4net;
 using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Globalization;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Speech.Synthesis;
 using System.Text.RegularExpressions;
-using log4net;
 
 namespace MissionPlanner.Utilities
 {
-    public class Speech: IDisposable, ISpeech
+    public class Speech : IDisposable, ISpeech
     {
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
@@ -22,9 +20,10 @@ namespace MissionPlanner.Utilities
 
         bool MONO = false;
 
-        public bool IsReady 
+        public bool IsReady
         {
-            get {
+            get
+            {
                 if (MONO)
                 {
                     return _state == SynthesizerState.Ready;
@@ -107,7 +106,11 @@ namespace MissionPlanner.Utilities
                 try
                 {
                     if (_speechwindows != null)
-                        _speechwindows.SpeakAsync(text);
+                    {
+                        PromptBuilder pb = new PromptBuilder(CultureInfo.CurrentUICulture);
+                        pb.AppendText(text);
+                        _speechwindows.SpeakAsync(pb);
+                    }
                 }
                 catch (COMException)
                 {
@@ -140,7 +143,7 @@ namespace MissionPlanner.Utilities
             {
                 try
                 {
-                    if (_speechwindows!= null)
+                    if (_speechwindows != null)
                         _speechwindows.SpeakAsyncCancelAll();
                 }
                 catch (System.PlatformNotSupportedException)

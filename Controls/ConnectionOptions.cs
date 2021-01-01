@@ -1,10 +1,10 @@
 ﻿using System;
+using System.Threading;
 using System.Windows.Forms;
 using MissionPlanner.Comms;
-using System.Threading;
 using MissionPlanner.Utilities;
 
-namespace MissionPlanner
+namespace MissionPlanner.Controls
 {
     public partial class ConnectionOptions : Form
     {
@@ -19,6 +19,7 @@ namespace MissionPlanner
             CMB_serialport.Items.Add("TCP");
             CMB_serialport.Items.Add("UDP");
             CMB_serialport.Items.Add("UDPCl");
+            CMB_serialport.Items.Add("WS");
 
             ThemeManager.ApplyThemeTo(this);
 

@@ -23,12 +23,6 @@
             window.fetch = function () {
                 console.log(arguments);
                 var result = fetchListener.apply(this, arguments);
-                if (arguments[0] === '_framework/blazor.boot.json')
-                    result.then(function (response) {
-                        response.clone().json().then(function (bootConfig) {
-                            assemblyReferences = bootConfig.assemblyReferences;
-                        });
-                    });
                 return result;
             };
         })();
@@ -37,13 +31,21 @@
     <link href="css/bootstrap/bootstrap.min.css" rel="stylesheet" />
     <link href="css/site.css" rel="stylesheet" />
 
+    <link href="_content/Sotsera.Blazor.Toaster/toastr.min.css" rel="stylesheet" />
+
     <link href="//cdn.datatables.net/1.10.19/css/jquery.dataTables.min.css" rel="stylesheet" />
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-    
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/two.js/0.6.0/two.js"></script>
+    
+    <script src="js/RotateIcon.js"></script>
 
     <script src="radio_controller.js"></script>
+
+    <script src="hterm_all.js"></script>
+    <script src="serial.js"></script>
+    <script src="console.js"></script>
 
     <script src="Cesium/Cesium.js"></script>
     <style>
@@ -78,7 +80,7 @@
                 document.getElementById('Loading-text').style.display = 'none';
                 el.innerText = 'Initializing';
                 var bootWatch = setInterval(function () {
-                    if (assemblyReferences.length == 0 || !window['MONO']) return;
+                    if (assemblyReferences == null || assemblyReferences.length == 0 || !window['MONO']) return;
                     el.innerText = 'Booting';
                     if (!MONO.loaded_files) return;
                     el.innerText = 'Fetching ' + MONO.loaded_files.length + '/' + assemblyReferences.length;
@@ -161,7 +163,6 @@
         function initWebSocket(host) {
             if (window["WebSocket"]) {
                 //var host = "ws://" + window.location.hostname + ":56781/websocket/raw";
-                host = host.value;
                 if (host == "")
                     host = "ws://localhost:56781/websocket/raw";
                 try {
@@ -184,12 +185,12 @@
                         dotNetDispatcherInvokeMethodHandle = Blazor.platform.findMethod(
                             'wasm',
                             'wasm.Pages',
-                            'websocket',
+                            'Websocket',
                             'ProcessPacketStatic');
                         dotNetDispatcherInvokeMethodHandle2 = Blazor.platform.findMethod(
                             'wasm',
                             'wasm.Pages',
-                            'websocket',
+                            'Websocket',
                             'ProcessPacketStaticBytes'
                         );
                     } catch (err) {
@@ -214,7 +215,9 @@
                             if (arrayBuffer.byteLength >= 1024)
                                 return;
 
-                            var dotNetBuffer = { toUint8Array: function () { return Blazor.platform.toUint8Array(dotNetArrayPtr); } };
+                            var dotNetBuffer = {
+                                toUint8Array: function () { return Blazor.platform.toUint8Array(dotNetArrayPtr); }
+                            };
                             var dotNetBufferView = dotNetBuffer.toUint8Array();
                             dotNetBufferView.set(new Uint8Array(arrayBuffer));
 
@@ -234,7 +237,9 @@
                 }
             }
 
+        }
 
+        function startChart() {
             var smoothie = new SmoothieChart();
 
             smoothie.streamTo(document.getElementById("graphcanvas"), 250);
@@ -261,9 +266,23 @@
             dotNetArrayPtr = dotNetArrayPtrI;
         }
 
+        // from https://github.com/dotnet/aspnetcore/pull/20260/files
+        toJavaScriptString: function toJavaScriptString(managedString) {
+            // Comments from original Mono sample:
+            // FIXME this is wastefull, we could remove the temp malloc by going the UTF16 route
+            // FIXME this is unsafe, cuz raw objects could be GC'd.
+
+            mono_string_get_utf8 = Module.cwrap('mono_wasm_string_get_utf8', 'number', ['number']);
+
+            const utf8 = mono_string_get_utf8(managedString);
+            const res = (window['Module']).UTF8ToString(utf8);
+            Module._free(utf8);
+            return res;
+        }
+
         function filebuffer(dotNetArrayPtrI, staticCallback) {
             console.log(dotNetArrayPtrI);
-            console.log(Blazor.platform.toJavaScriptString(staticCallback));
+            console.log(toJavaScriptString(staticCallback));
             var arrayBuffer;
             var fileReader = new FileReader();
             fileReader.onload = function (r) {
@@ -273,7 +292,8 @@
                 var dotNetBufferView = dotNetBuffer.toUint8Array();
                 dotNetBufferView.set(new Uint8Array(arrayBuffer));
 
-                DotNet.invokeMethodAsync('wasm', Blazor.platform.toJavaScriptString(staticCallback));
+
+                DotNet.invokeMethodAsync('wasm', toJavaScriptString(staticCallback));
             };
 
             var files = document.getElementById('files').files;
@@ -310,6 +330,8 @@
                 //test.sock_ops.connect(test, "127.0.0.1/websocket/raw", 56781);
             }, 2000);
         });*/
+
+        !function (t) { var e = {}; function n(r) { if (e[r]) return e[r].exports; var i = e[r] = { i: r, l: !1, exports: {} }; return t[r].call(i.exports, i, i.exports, n), i.l = !0, i.exports } n.m = t, n.c = e, n.d = function (t, e, r) { n.o(t, e) || Object.defineProperty(t, e, { enumerable: !0, get: r }) }, n.r = function (t) { "undefined" != typeof Symbol && Symbol.toStringTag && Object.defineProperty(t, Symbol.toStringTag, { value: "Module" }), Object.defineProperty(t, "__esModule", { value: !0 }) }, n.t = function (t, e) { if (1 & e && (t = n(t)), 8 & e) return t; if (4 & e && "object" == typeof t && t && t.__esModule) return t; var r = Object.create(null); if (n.r(r), Object.defineProperty(r, "default", { enumerable: !0, value: t }), 2 & e && "string" != typeof t) for (var i in t) n.d(r, i, function (e) { return t[e] }.bind(null, i)); return r }, n.n = function (t) { var e = t && t.__esModule ? function () { return t.default } : function () { return t }; return n.d(e, "a", e), e }, n.o = function (t, e) { return Object.prototype.hasOwnProperty.call(t, e) }, n.p = "", n(n.s = 0) }([function (t, e, n) { "use strict"; Object.defineProperty(e, "__esModule", { value: !0 }); const r = n(1); var i; !function (t) { const e = "BlazorExtensions", n = { Canvas2d: new r.ContextManager("2d"), WebGL: new r.ContextManager("webgl") }; t.initialize = function () { "undefined" == typeof window || window[e] ? window[e] = Object.assign({}, window[e], n) : window[e] = Object.assign({}, n) } }(i || (i = {})), i.initialize() }, function (t, e, n) { "use strict"; Object.defineProperty(e, "__esModule", { value: !0 }); e.ContextManager = class { constructor(t) { if (this.contexts = new Map, this.webGLObject = new Array, this.webGLContext = !1, this.webGLTypes = [WebGLBuffer, WebGLShader, WebGLProgram, WebGLFramebuffer, WebGLRenderbuffer, WebGLTexture, WebGLUniformLocation], this.add = ((t, e) => { if (!t) throw new Error("Invalid canvas."); if (!this.contexts.get(t.id)) { var n; if (!(n = e ? t.getContext(this.contextName, e) : t.getContext(this.contextName))) throw new Error("Invalid context."); this.contexts.set(t.id, n) } }), this.remove = (t => { this.contexts.delete(t.id) }), this.setProperty = ((t, e, n) => { const r = this.getContext(t); this.setPropertyWithContext(r, e, n) }), this.getProperty = ((t, e) => { const n = this.getContext(t); return this.serialize(n[e]) }), this.call = ((t, e, n) => { const r = this.getContext(t); return this.callWithContext(r, e, n) }), this.callBatch = ((t, e) => { const n = this.getContext(t); for (let t = 0; t < e.length; t++) { let r = e[t].slice(2); e[t][1] ? this.callWithContext(n, e[t][0], r) : this.setPropertyWithContext(n, e[t][0], Array.isArray(r) && r.length > 0 ? r[0] : null) } }), this.callWithContext = ((t, e, n) => this.serialize(this.prototypes[e].apply(t, void 0 != n ? n.map(t => this.deserialize(e, t)) : []))), this.setPropertyWithContext = ((t, e, n) => { t[e] = this.deserialize(e, n) }), this.getContext = (t => { if (!t) throw new Error("Invalid canvas."); const e = this.contexts.get(t.id); if (!e) throw new Error("Invalid context."); return e }), this.deserialize = ((t, e) => { if (!this.webGLContext || void 0 == e) return e; if (e.hasOwnProperty("webGLType") && e.hasOwnProperty("id")) return this.webGLObject[e.id]; if (Array.isArray(e) && !t.endsWith("v")) return Int8Array.of(...e); if ("string" != typeof e || "bufferData" !== t && "bufferSubData" !== t) return e; { let t = window.atob(e), r = t.length, i = new Uint8Array(r); for (var n = 0; n < r; n++)i[n] = t.charCodeAt(n); return i } }), this.serialize = (t => { if (t instanceof TextMetrics) return { width: t.width }; if (!this.webGLContext || void 0 == t) return t; const e = this.webGLTypes.find(e => t instanceof e); if (void 0 != e) { const n = this.webGLObject.length; return this.webGLObject.push(t), { webGLType: e.name, id: n } } return t }), this.contextName = t, "2d" === t) this.prototypes = CanvasRenderingContext2D.prototype; else { if ("webgl" !== t && "experimental-webgl" !== t) throw new Error(`Invalid context name: ${t}`); this.prototypes = WebGLRenderingContext.prototype, this.webGLContext = !0 } } } }]);
 
     </script>
 
@@ -367,240 +389,366 @@
     </script>
 
 
-    <script>
-        var map;
-        var viewer;
-        var markers = [];
-        var default_model_scale = 1.5;
-        var model_scale_factor = 0.06;
-        var takeoff_altitude = 0;
+<script>
+    var map;
+    var viewer;
+    var markers = [];
+    var default_model_scale = 1.5;
+    var model_scale_factor = 0.06;
+    var takeoff_altitude = 0;
 
-        function initMap() {
-            try {
-                map = new google.maps.Map(document.getElementById('map'),
-                    {
-                        center: { lat: -35, lng: 117.89 },
-                        zoom: 1,
-                        mapTypeId: 'satellite',
-                        maxZoom: 21
-                    });
+    function initMap() {
+        try {
+            map = new google.maps.Map(document.getElementById('map'),
+                {
+                    center: { lat: -35, lng: 117.89 },
+                    zoom: 1,
+                    mapTypeId: 'satellite',
+                    maxZoom: 21
+                });
 
-                //map.setMapTypeId('satellite');
+            //map.setMapTypeId('satellite');
 
-                //map.setOptions({maxZoom: 21});
-            } catch (err) { console.log(err); }
+            //map.setOptions({maxZoom: 21});
+        } catch (err) { console.log(err); }
 
-            Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJjODdmODk4Yy0xZDhlLTQxNjAtOTkzNS02ZjNmOGRhM2I1MDgiLCJpZCI6NDYzOCwic2NvcGVzIjpbImFzciIsImdjIl0sImlhdCI6MTU0MTMyMDQ4Nn0.GnXyBbMj8o8TZ2LeCxFB_SrdUiQodGmjT1AbNCvmezA';
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJjODdmODk4Yy0xZDhlLTQxNjAtOTkzNS02ZjNmOGRhM2I1MDgiLCJpZCI6NDYzOCwic2NvcGVzIjpbImFzciIsImdjIl0sImlhdCI6MTU0MTMyMDQ4Nn0.GnXyBbMj8o8TZ2LeCxFB_SrdUiQodGmjT1AbNCvmezA';
 
 
-            viewer = new Cesium.Viewer('cesiumContainer', {
-                infoBox: false, //Disable InfoBox widget
-                selectionIndicator: true, //Disable selection indicator
-                navigationInstructionsInitiallyVisible: false,
-                shadows: false,
-                shouldAnimate: false,
-                requestRenderMode: true,
-                maximumRenderTimeChange: 1/15
+        viewer = new Cesium.Viewer('cesiumContainer', {
+            infoBox: false, //Disable InfoBox widget
+            selectionIndicator: true, //Disable selection indicator
+            navigationInstructionsInitiallyVisible: false,
+            shadows: false,
+            shouldAnimate: true,
+            requestRenderMode: true,
+            maximumRenderTimeChange: 1 / 15,
+            clockStep: Cesium.ClockStep.SYSTEM_CLOCK,
+        });
+
+        var terrainProvider = Cesium.createWorldTerrain({
+            requestWaterMask: true,
+            requestVertexNormals: true
+        });
+        viewer.terrainProvider = terrainProvider;
+
+        viewer.scene.globe.depthTestAgainstTerrain = true;
+
+        var scene = viewer.scene;
+        var ellipsoid = scene.globe.ellipsoid;
+        pickCartographicPosition(scene, ellipsoid);
+
+        markers = [];
+    }
+
+    var first = 0;
+    var ground_offset = 0;
+    var takeoff_altitude = 0;
+
+    missionmarkers = {};
+    flightPaths = {};
+
+    function setMission(sysid, compid, wps, fences, rallys) {
+        var mavno = indextosysidcompid.get(sysid * 256 + compid);
+        wps = JSON.parse(wps);
+        if (wps.length == 0)
+            return;
+        var list = [];
+        wps.forEach(wp => { list.push({ lat: (wp.x / 1e7), lng: (wp.y / 1e7) }) });
+
+        if (flightPaths[mavno] == undefined) {
+            var flightPath = new google.maps.Polyline({
+                path: list,
+                geodesic: true,
+                strokeColor: '#FFFF00',
+                strokeOpacity: 1.0,
+                strokeWeight: 2,
+                map: map
             });
-
-            var terrainProvider = Cesium.createWorldTerrain({
-                requestWaterMask: true,
-                requestVertexNormals: true
-            });
-            viewer.terrainProvider = terrainProvider;
-
-            viewer.scene.globe.depthTestAgainstTerrain = true;
-
-            var scene = viewer.scene;
-            var ellipsoid = scene.globe.ellipsoid;
-            pickCartographicPosition(scene, ellipsoid);
-
-            markers = [];
+            flightPaths[mavno] = flightPath;
         }
 
-        var first = 0;
-        var ground_offset = 0;
-        var takeoff_altitude = 0;
+        flightPaths[mavno].setPath(list);
 
-        function setPosition(mavno, lat, lng, altasl, roll, pitch, yaw) {
-            if (lat == 0 || lng == 0 || altasl == 0)
-                return;
-
-            self.roll = roll;
-            self.pitch = pitch;
-            self.yaw = yaw;
-
-            line1.append(new Date().getTime(), roll);
-            line2.append(new Date().getTime(), pitch);
-
-            addData();
-
-            if (first == 0 && altasl != 0) {
-                var takeoff_position = [Cesium.Cartographic.fromDegrees(
-                    lng,
-                    lat
-                )];
-
-                takeoff_altitude = altasl;
-
-                if (viewer) {
-                    var promise = Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, takeoff_position);
-                    Cesium.when(promise,
-                        function (updatedPositions) {
-                            ground_offset = takeoff_position[0].height - takeoff_altitude;
-                            console.log('Ground Offset in meters: ' + ground_offset);
-                            // re-compute the positions taking the ground offset into account.
-                            // add 2 meters more to allow for inaccuracies
-                            //var positionProperty = computePositionProperty(ground_offset + 2);
-                            //entity.position = positionProperty;
-                        });
-                    first++;
+        wps.forEach(wp => {
+                var offset = wp.seq * 512;
+                if (missionmarkers[mavno + offset] == undefined) {
+                    var marker = new google.maps.Marker({
+                        position: { lat: wp.x / 1e7, lng: wp.y / 1e7 },
+                        map: map,
+                        label: '' + wp.seq,
+                        icon: 'https://maps.google.com/mapfiles/ms/icons/green.png'
+                    });
+                    missionmarkers[mavno + offset] = marker;
                 }
-            }
 
-            var myLatLng = { lat: lat, lng: lng };
-            if (markers.length >= (mavno + 1)) {
-                markers[mavno].setPosition(myLatLng);
-                if (map != markers[mavno].map)
-                    markers[mavno].setMap(map);
-            } else {
-                var marker = new google.maps.Marker({
-                    position: myLatLng,
-                    map: map,
-                    title: 'ArduPilot ' + mavno
+                missionmarkers[mavno + offset].setPosition({ lat: wp.x / 1e7, lng: wp.y / 1e7 });
+
+                if (map != missionmarkers[mavno + offset].map)
+                    missionmarkers[mavno + offset].setMap(map);
+            }
+        );
+
+        if (viewer) {
+            var list = [];
+            var home = wps[0];
+            wps.forEach(wp => {
+                list.push(wp.y / 1e7);
+                list.push(wp.x / 1e7);
+                list.push(wp.z + (wp.frame == 0 ? 0 : home.z));
+            });
+
+            var wppath = viewer.entities.getById('waypoints');
+
+            if (wppath == undefined) {
+                wppath = viewer.entities.add({
+                    name: 'Path',
+                    id: 'waypoints',
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArrayHeights(list),
+                        width: 2,
+                        material: new Cesium.PolylineOutlineMaterialProperty({
+                            color: Cesium.Color.YELLOW,
+                            outlineWidth: 0,
+                            outlineColor: Cesium.Color.BLACK
+                        })
+                    }
                 });
-                markers.push(marker);
-            }
-            if (mavno === 0) {
-                if (map.zoom < 2) {
-                    map.setCenter({ lat: lat, lng: lng });
-                    map.setZoom(16);
-                    //viewer.camera.zoomTo(Cesium.Cartesian3.fromDegrees(lng, lat, altasl));
-                }
+            } else {
+                wppath.polyline.positions = Cesium.Cartesian3.fromDegreesArrayHeights(list);
             }
 
-            if (viewer) {
-                var pinBuilder = new Cesium.PinBuilder();
-
-
-                var position = Cesium.Cartesian3.fromDegrees(myLatLng.lng, myLatLng.lat, altasl + ground_offset + 1);
-                var hpr = new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(yaw),
-                    Cesium.Math.toRadians(pitch),
-                    Cesium.Math.toRadians(roll));
-                var orientation = Cesium.Transforms.headingPitchRollQuaternion(position, hpr);
-
-                if (viewer.entities.values.length >= (mavno + 1)) {
-                    viewer.entities.values[mavno].position = position;
-                    viewer.entities.values[mavno].orientation = orientation;
-                } else {
-                    // add a new one
-                    var entity = viewer.entities.add({
-                        name: 'ArduPilot ' + viewer.entities.values.length,
-                        position: position,
-                        orientation: orientation,
+            var pinBuilder = new Cesium.PinBuilder();
+            wps.forEach(wp => {
+                var wpitem = viewer.entities.getById('Waypoint' + wp.seq);
+                if (wpitem == undefined) {
+                    wpitem = viewer.entities.add({
+                        name: 'Waypoint ' + wp.seq,
+                        id: 'Waypoint' + wp.seq,
+                        position: Cesium.Cartesian3.fromDegrees(wp.y / 1e7, wp.x / 1e7, wp.z + (wp.frame == 0 ? 0 : home.z)),
                         billboard: {
-                            image: pinBuilder.fromText(mavno, Cesium.Color.BLACK, 48)
-                                .toDataURL(),
+                            image: pinBuilder.fromText('' + wp.seq, Cesium.Color.BLACK, 48).toDataURL(),
                             verticalOrigin: Cesium.VerticalOrigin.BOTTOM
-                        },
-                        model: {
-                            uri: 'Cesium_Air.txt',
-                            minimumPixelSize: 64,
-                            scale: default_model_scale * model_scale_factor
-                        },
-                        path: {
-                            resolution: 1,
-                            material: new Cesium.PolylineGlowMaterialProperty({
-                                glowPower: 0.1,
-                                color: Cesium.Color.YELLOW
-                            }),
-                            width: 10
                         }
                     });
-
-
+                } else {
+                    wpitem.position = Cesium.Cartesian3.fromDegrees(wp.y / 1e7, wp.x / 1e7, wp.z + (wp.frame == 0 ? 0 : home.z));
                 }
+            });
+        }
+    }
 
-                viewer.trackedEntity = viewer.entities.values[0];
+    function setAttitude(sysid, compid, roll, pitch, yaw) {
+
+        line1.append(new Date().getTime(), roll);
+        line2.append(new Date().getTime(), pitch);
+
+        addData();
+    }
+
+    var indextosysidcompid = new Map();
+
+    function setPosition(sysid, compid, lat, lng, altasl, roll, pitch, yaw) {
+        if (lat == 0 || lng == 0 || altasl == 0)
+            return;
+
+        if (first == 0 && altasl != 0) {
+            var takeoff_position = [Cesium.Cartographic.fromDegrees(
+                lng,
+                lat
+            )];
+
+            takeoff_altitude = altasl;
+
+            if (viewer) {
+                var promise = Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, takeoff_position);
+                Cesium.when(promise,
+                    function (updatedPositions) {
+                        ground_offset = takeoff_position[0].height - takeoff_altitude;
+                        console.log('Ground Offset in meters: ' + ground_offset);
+                        // re-compute the positions taking the ground offset into account.
+                        // add 2 meters more to allow for inaccuracies
+                        //var positionProperty = computePositionProperty(ground_offset + 2);
+                        //entity.position = positionProperty;
+                    });
+                first++;
             }
         }
 
-        function pickCartographicPosition(scene, ellipsoid) {
-            // Mouse over the globe to see the cartographic position
-            handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
-            handler.setInputAction(function (movement) {
-                var cartesian = scene.camera.pickEllipsoid(movement.endPosition, ellipsoid);
-                if (cartesian) {
-                    var ray = viewer.camera.getPickRay(movement.endPosition);
-                    var cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+        // set the index map
+        if (indextosysidcompid.get(sysid * 256 + compid) == undefined)
+            indextosysidcompid.set(sysid * 256 + compid, indextosysidcompid.size || 0);
+        var mavno = indextosysidcompid.get(sysid * 256 + compid);
 
-                    var cartographic = ellipsoid.cartesianToCartographic(cartesian);
-                    var position = new Cesium.Cartographic(cartographic.longitude, cartographic.latitude);
-                    var coords = Cesium.Math.toDegrees(cartographic.longitude).toFixed(6) + ', ' + Cesium.Math.toDegrees(cartographic.latitude).toFixed(6) + ';<br/> Cartesian Z: ' + cartesian.z.toFixed(2);
+        var myLatLng = { lat: lat, lng: lng };
+        if (markers.length >= (mavno + 1)) {
+            markers[mavno].setPosition(myLatLng);
+            //markers[mavno].icon.url = RotateIcon.makeIcon("images/drone-icon-1.jpg").setRotation({ deg: yaw }).getUrl();
+            markers[mavno].icon.rotation = yaw;
+            if (map != markers[mavno].map)
+                markers[mavno].setMap(map);
+        } else {
+            var marker = new google.maps.Marker({
+                position: myLatLng,
+                map: map,
+                title: 'ArduPilot ' + sysid,
+                icon: {
+                    url: 'images/drone-icon-1.jpg',
+                    scaledSize: new google.maps.Size(50, 50), // scaled size
+                    origin: new google.maps.Point(0,0), // origin
+                    anchor: new google.maps.Point(25, 25), // anchor
+                    rotation: yaw
+                }
+            });
+            markers.push(marker);
+        }
+        if (mavno === 0) {
+            if (map.zoom < 2) {
+                map.setCenter({ lat: lat, lng: lng });
+                map.setZoom(16);
+                //viewer.camera.zoomTo(Cesium.Cartesian3.fromDegrees(lng, lat, altasl));
+            }
+        }
 
-                    var ray = viewer.camera.getPickRay(movement.endPosition);
-                    var position = viewer.scene.globe.pick(ray, viewer.scene);
-                    if (Cesium.defined(position)) {
-                        // convert position to cartographic and display altitude
+        if (viewer) {
+
+
+
+            var position = Cesium.Cartesian3.fromDegrees(myLatLng.lng, myLatLng.lat, altasl);
+            var hpr = new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(yaw - 90),
+                Cesium.Math.toRadians(pitch),
+                Cesium.Math.toRadians(roll));
+            var orientation = Cesium.Transforms.headingPitchRollQuaternion(position, hpr);
+
+            if (viewer.entities.values.length >= (mavno + 1)) {
+                viewer.entities.values[mavno].position = position;
+                viewer.entities.values[mavno].orientation = orientation;
+                // add a trail
+                viewer.entities.getById('path').position.addSample(Cesium.JulianDate.now(), position);
+            } else {
+                var pinBuilder = new Cesium.PinBuilder();
+                // add a new one
+                var entity = viewer.entities.add({
+                    name: 'ArduPilot ' + sysid,
+                    id: 'ArduPilot ' + sysid,
+                    position: position,
+                    orientation: orientation,
+                    billboard: {
+                        image: pinBuilder.fromText(sysid, Cesium.Color.BLACK, 48)
+                            .toDataURL(),
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM
+                    },
+                    model: {
+                        uri: 'iris.txt',
+                        minimumPixelSize: 64,
+                        scale: default_model_scale * model_scale_factor
                     }
+                });
 
-                    //or try to get the height value, result is very low value or zero
-                    var coords = Cesium.Math.toDegrees(cartographic.longitude).toFixed(6) + ', ' + Cesium.Math.toDegrees(cartographic.latitude).toFixed(6) + ';<br/> Height: ' + cartographic.height;
-                    document.getElementById('coords').innerHTML = '<p style="display: block;position: absolute;top: 30px;right: 6px" />' + coords + '<br/><p/>';
+                var pathPosition = new Cesium.SampledPositionProperty();
+                var entityPath = viewer.entities.add({
+                    position : pathPosition,
+                    name: 'path',
+                    id: 'path',
+                    path : {
+                        show : true,
+                        leadTime : 0,
+                        trailTime : 60,
+                        width : 10,
+                        resolution : 1,
+                        material : new Cesium.PolylineGlowMaterialProperty({
+                            glowPower : 0.3,
+                            taperPower : 0.3,
+                            color : Cesium.Color.PALEGOLDENROD
+                        })
+                    }
+                });
+            }
+
+            if (viewer.trackedEntity == undefined) {
+                viewer.scene.camera.lookAt(position, new Cesium.Cartesian3(30, 0, 10));
+                //viewer.flyTo(position).then(function(){
+                    viewer.trackedEntity = viewer.entities.values[0];
+                //});
+            }
+        }
+    }
+
+    function pickCartographicPosition(scene, ellipsoid) {
+        // Mouse over the globe to see the cartographic position
+        handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
+        handler.setInputAction(function (movement) {
+            var cartesian = scene.camera.pickEllipsoid(movement.endPosition, ellipsoid);
+            if (cartesian) {
+                var ray = viewer.camera.getPickRay(movement.endPosition);
+                var cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+
+                var cartographic = ellipsoid.cartesianToCartographic(cartesian);
+                var position = new Cesium.Cartographic(cartographic.longitude, cartographic.latitude);
+                var coords = Cesium.Math.toDegrees(cartographic.longitude).toFixed(6) + ', ' + Cesium.Math.toDegrees(cartographic.latitude).toFixed(6) + ';<br/> Cartesian Z: ' + cartesian.z.toFixed(2);
+
+                var ray = viewer.camera.getPickRay(movement.endPosition);
+                var position = viewer.scene.globe.pick(ray, viewer.scene);
+                if (Cesium.defined(position)) {
+                    // convert position to cartographic and display altitude
                 }
-            }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
-        }
 
-        function testlog(mavlist) {
-            console.log(mavlist);
-        }
+                //or try to get the height value, result is very low value or zero
+                var coords = Cesium.Math.toDegrees(cartographic.longitude).toFixed(6) + ', ' + Cesium.Math.toDegrees(cartographic.latitude).toFixed(6) + ';<br/> Height: ' + cartographic.height;
+                document.getElementById('coords').innerHTML = '<p style="display: block;position: absolute;top: 30px;right: 6px" />' + coords + '<br/><p/>';
+            }
+        }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+    }
+
+    function testlog(mavlist) {
+        console.log(mavlist);
+    }
 
 
 
-        //map.setCenter({lat: cs.lat, lng: cs.lng});
+    //map.setCenter({lat: cs.lat, lng: cs.lng});
 
-        //&callback=initMap
+    //&callback=initMap
 
-        function plotData(div = "", line1 = "", line2 = "", line3 = "", line4 = "", line5 = "", line6 = "") {
+    function plotData(div = "", line1 = "", line2 = "", line3 = "", line4 = "", line5 = "", line6 = "") {
 
-            var data = [];
+        var data = [];
 
-            if (line1 != "")
-                data.push(JSON.parse(line1));
-            if (line2 != "")
-                data.push(JSON.parse(line2));
-            if (line3 != "")
-                data.push(JSON.parse(line3));
-            if (line4 != "")
-                data.push(JSON.parse(line4));
-            if (line5 != "")
-                data.push(JSON.parse(line5));
-            if (line6 != "")
-                data.push(JSON.parse(line6));
+        if (line1 != "")
+            data.push(JSON.parse(line1));
+        if (line2 != "")
+            data.push(JSON.parse(line2));
+        if (line3 != "")
+            data.push(JSON.parse(line3));
+        if (line4 != "")
+            data.push(JSON.parse(line4));
+        if (line5 != "")
+            data.push(JSON.parse(line5));
+        if (line6 != "")
+            data.push(JSON.parse(line6));
 
-            var layout = {
-                yaxis: { title: '' },
-                yaxis2: {
-                    title: '',
-                    overlaying: 'y',
-                    side: 'right'
-                }
-            };
+        var layout = {
+            yaxis: { title: '' },
+            yaxis2: {
+                title: '',
+                overlaying: 'y',
+                side: 'right'
+            }
+        };
 
-            //Plotly.newPlot
-            Plotly.plot(div, data, layout, { responsive: true });
-        }
+        //Plotly.newPlot
+        Plotly.plot(div, data, layout, { responsive: true });
+    }
 
-    </script>
+</script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDW05vWXeNIfZAN4Ter8gf4YLg8rPHZToc" async defer
-            onerror="    document.write('<script src=" https:\/\/maps.google.cn\/maps\/api\/js?key=AIzaSyDW05vWXeNIfZAN4Ter8gf4YLg8rPHZToc" async><\/script>');"></script>
+            onerror="    document.write('<script src="https:\/\/maps.google.cn\/maps\/api\/js?key=AIzaSyDW05vWXeNIfZAN4Ter8gf4YLg8rPHZToc" async><\/script>');"></script>
 
 
 
 
-    <!--<input type="range"  min="0" max="100" />-->
+        <!--<input type="range"  min="0" max="100" />-->
     <div id="coords"></div>
-
 
 </body>
 </html>

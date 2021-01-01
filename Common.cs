@@ -1,23 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Windows.Forms;
-using GMap.NET;
+﻿using GMap.NET;
 using GMap.NET.WindowsForms;
 using GMap.NET.WindowsForms.Markers;
 using MissionPlanner.ArduPilot;
 using MissionPlanner.Maps;
 using MissionPlanner.Utilities;
+using System;
+using System.Drawing;
+using System.Text.RegularExpressions;
+using System.Windows.Forms;
 
 namespace MissionPlanner
 {
-    public class Common
+    public static class Common
     {
         public static GMapMarker getMAVMarker(MAVState MAV)
         {
             PointLatLng portlocation = new PointLatLng(MAV.cs.lat, MAV.cs.lng);
 
-            if (MAV.aptype == MAVLink.MAV_TYPE.FIXED_WING)
+            if (MAV.aptype == MAVLink.MAV_TYPE.FIXED_WING || MAV.aptype >= MAVLink.MAV_TYPE.VTOL_DUOROTOR && MAV.aptype <= MAVLink.MAV_TYPE.VTOL_RESERVED5)
             {
                 // colorise map marker/s based on their sysid, for common sysid/s used 1-6, 11-16, and 101-106
                 // its rare for ArduPilot to be used to fly more than 6 planes at a time from one console.
@@ -30,9 +30,8 @@ namespace MissionPlanner
                     MAV.cs.groundcourse, MAV.cs.nav_bearing, MAV.cs.target_bearing,
                     MAV.cs.radius * CurrentState.multiplierdist)
                 {
-                    ToolTipText = MAV.cs.alt.ToString("0") + CurrentState.AltUnit + " | " + (int)MAV.cs.airspeed +
-                                  CurrentState.SpeedUnit + " | id:" + (int)MAV.sysid,
-                    ToolTipMode = MarkerTooltipMode.Always
+                    ToolTipText = ArduPilot.Common.speechConversion(MAV, "" + Settings.Instance["mapicondesc"]),
+                    ToolTipMode = String.IsNullOrEmpty(Settings.Instance["mapicondesc"]) ? MarkerTooltipMode.Never : MarkerTooltipMode.Always
                 });
             }
             else if (MAV.aptype == MAVLink.MAV_TYPE.GROUND_ROVER)
@@ -79,7 +78,11 @@ namespace MissionPlanner
                 }
 
                 return (new GMapMarkerQuad(portlocation, MAV.cs.yaw,
-                    MAV.cs.groundcourse, MAV.cs.nav_bearing, MAV.sysid));
+                        MAV.cs.groundcourse, MAV.cs.nav_bearing, MAV.sysid)
+                {
+                    ToolTipText = ArduPilot.Common.speechConversion(MAV, "" + Settings.Instance["mapicondesc"]),
+                    ToolTipMode = String.IsNullOrEmpty(Settings.Instance["mapicondesc"]) ? MarkerTooltipMode.Never : MarkerTooltipMode.Always
+                });
             }
             else if (MAV.aptype == MAVLink.MAV_TYPE.COAXIAL)
             {
@@ -132,7 +135,23 @@ namespace MissionPlanner
             Controls.MyButton buttonOk = new Controls.MyButton();
             System.ComponentModel.ComponentResourceManager resources =
                 new System.ComponentModel.ComponentResourceManager(typeof(MainV2));
-            form.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+            try
+            {
+                form.Icon = ((System.Drawing.Icon) (resources.GetObject("$this.Icon")));
+            } catch {}
+
+            string link = "";
+            string linktext = "";
+
+
+            Regex linkregex = new Regex(@"(\[link;([^\]]+);([^\]]+)\])", RegexOptions.IgnoreCase);
+            Match match = linkregex.Match(promptText);
+            if (match.Success)
+            {
+                link = match.Groups[2].Value;
+                linktext = match.Groups[3].Value;
+                promptText = promptText.Replace(match.Groups[1].Value, "");
+            }
 
             form.Text = title;
             label.Text = promptText;
@@ -159,12 +178,44 @@ namespace MissionPlanner
             buttonOk.DialogResult = DialogResult.OK;
             buttonOk.Location = new Point(form.Right - 100, 80);
 
-            label.SetBounds(9, 40, 372, 13);
+            label.SetBounds(9, 9, 372, 13);
 
             label.AutoSize = true;
 
-            form.ClientSize = new Size(396, 107);
             form.Controls.AddRange(new Control[] { label, chk, buttonOk });
+
+            if (link != "" && linktext != "")
+            {
+                Size textSize2 = TextRenderer.MeasureText(linktext, SystemFonts.DefaultFont);
+                var linklbl = new LinkLabel
+                {
+                    Left = 9,
+                    Top = label.Bottom,
+                    Width = textSize2.Width,
+                    Height = textSize2.Height,
+                    Text = linktext,
+                    Tag = link,
+                    AutoSize = true
+                };
+                linklbl.Click += (sender, args) =>
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(((LinkLabel)sender).Tag.ToString());
+                    }
+                    catch (Exception)
+                    {
+                        CustomMessageBox.Show("Failed to open link " + ((LinkLabel)sender).Tag.ToString());
+                    }
+                };
+
+                form.Controls.Add(linklbl);
+
+                form.Width = Math.Max(form.Width, linklbl.Right + 16);
+            }
+
+            form.ClientSize = new Size(396, 107);
+
             form.ClientSize = new Size(Math.Max(300, label.Right + 10), form.ClientSize.Height);
             form.FormBorderStyle = FormBorderStyle.FixedDialog;
             form.StartPosition = FormStartPosition.CenterScreen;
@@ -185,11 +236,6 @@ namespace MissionPlanner
         static void chk_CheckStateChanged(object sender, EventArgs e)
         {
             Settings.Instance[(string)((CheckBox)(sender)).Tag] = ((CheckBox)(sender)).Checked.ToString();
-        }
-
-        public static List<KeyValuePair<int, string>> getModesList(Firmwares csFirmware)
-        {
-            return ArduPilot.Common.getModesList(csFirmware);
         }
     }
 }

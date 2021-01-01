@@ -142,12 +142,12 @@ namespace MissionPlanner.Utilities
             }
             else //LOG
             {
-                using (CollectionBuffer col = new CollectionBuffer(File.OpenRead(logfile)))
+                using (DFLogBuffer col = new DFLogBuffer(File.OpenRead(logfile)))
                 using (var outfilestream = File.Open(outputfile, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                 {
                     foreach (var dfItem in col.GetEnumeratorTypeAll())
                     {
-                        var index = col.dflog.FindMessageOffset(dfItem.msgtype, "lat");
+                        var index = col.dflog.FindMessageOffset(dfItem.msgtype, "Lat");
 
                         if (index != -1)
                         {
